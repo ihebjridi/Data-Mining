@@ -1,0 +1,192 @@
+---
+title: "Text Mining for R"
+author: "Iheb Jridi"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(message = FALSE,warning = FALSE)
+```
+
+
+## Text Mining - Apple Product
+
+
+
+**Problem**
+
+Apple is considered today as the largest manufacturer of electronic products and software . 
+
+In fact, the company's market capitalization exceeded trillion dollars in August 2018.
+
+
+The apple company builds high-performance luxury computer equipment: the iPhone for example, sells at 590 units per minute.
+
+
+It will be interesting to find out what people think of this company, by finding the most appropriate words  associated with the term **Apple**. The problem therefore comes down to finding the theme of the flow of comments from Internet users (Twitter in our case).
+
+Given the size of content to be studied, the task turns out to be difficult. 
+
+The use of text mining is therefore
+paramount. 
+
+# Presentation of the proposed solution 
+Multiple text mining methods exist and allow to identify the theme of a textual data flow. In this lab, we will focus on the cloud
+keywords (better known as **WordCloud**).
+
+The keyword cloud is a visual representation of the keywords most used in a data flow.
+
+Generally, words are displayed in font sizes and weights that are more visible when they are so used or popular (so depending on their frequency of appearance).
+
+**Technical Details**
+
+In this part, we will carefully explain the procedure to do. The operation consists of 3 main stages
+
+**Imports**
+```{r}
+library("NLP")
+library ("tm")
+library("wordcloud")
+library ("RColorBrewer")
+```
+
+
+**Loading data**
+```{r}
+data <-  readLines("apple.txt")
+```
+
+
+
+**Corpus Creation**
+
+A corpus is a large and structured set of textual data. The purpose of this step is to convert semi-structured data into structured data that is easy to clean and handle.
+```{r}
+docs <- Corpus ( VectorSource (data))
+```
+
+
+
+
+**Cleaning and Transforming**
+
+The transformation and cleaning stage consists of:
+* The removal of stopwords
+* The removal of punctuations
+* The deletion of figures
+* The deletion of spaces
+* Removal of special characters
+* The universalization of the case (in miniscule)
+
+
+In our case, we will also delete the word apple, for more meaningful results.
+
+```{r}
+toSpace <- content_transformer ( function (x , pattern ) gsub (pattern, "", x))
+docs <- tm_map (docs, content_transformer (tolower))
+```
+Text Processing
+
+```{r}
+# Supprimer les stopwords
+docs <- tm_map (docs,removeWords, stopwords ("english"))
+
+# Supprimer les ponctuations
+docs <- tm_map (docs, removePunctuation)
+
+# Supprimer les chiffres
+docs <- tm_map (docs, removeNumbers)
+
+# Réduire les espaces
+docs <- tm_map (docs, stripWhitespace)
+
+
+```
+
+Reduce these following characters to one space.
+```{r}
+docs <- tm_map (docs, toSpace, "\n")
+
+
+docs <- tm_map (docs, toSpace, "\t")
+
+docs <- tm_map (docs, toSpace, "@")
+
+docs <- tm_map (docs, toSpace, "apple")
+
+
+docs <- tm_map (docs, toSpace, "#")
+
+
+docs <- tm_map(docs, toSpace, "http")
+```
+
+
+**Construction of the word matrix**
+
+This matrix contains the frequencies of the words in the corpus. The individuals are the documents; the columns
+represent the words.
+
+The _TermDocumentMatrix_ function takes the corpus as a parameter and allows you to create the matrix.
+
+Then, we sort the matrix in decreasing order of frequencies and we create a dataframe from of the sorted matrix. This dataframe will ultimately allow you to create the wordcloud.
+```{r}
+dtm <- TermDocumentMatrix (docs)
+m <- as.matrix(dtm)
+v <- sort( rowSums (m),decreasing=TRUE)
+d <- data.frame(word = names (v),freq=v)
+```
+
+
+
+
+**20 most frequent words**
+ 
+
+```{r}
+findFreqTerms(dtm, lowfreq = 20)
+```
+
+```{r}
+barplot(d[1:10,]$freq, las = 2, names.arg = d[1:10,]$word,
+col ="lightblue", main ="Most frequent words",
+ylab = "Word frequencies")
+```
+
+
+
+**Results**
+
+**Words associated with Apple**
+```{r}
+dtm
+findAssocs (dtm, terms = c("apple","phone","new"), corlimit = c(0.1,0.3,0.2))
+
+```
+
+
+
+**WordCloud**
+```{r}
+set.seed (1234)
+wordcloud(words = d$word, freq = d$freq, min.freq = 10,
+max.words=200, random.order=FALSE, rot.per=0.35,
+colors= brewer.pal(8, "Dark2"))
+```
+
+**Interpretations**
+
+By observing the wordcloud and the table of words associated with the term **Apple**, we can see that the flow
+text on which we are studying, was downloaded during a promotion concerning the iPod, the gadget Apple music.
+
+On the other hand, this same period saw the launch of the iTunes Festival event and the iTunes Music application (also known as Apple Music) which explains the high correlation
+of the term **itunes**.
+
+It is also important to mention that the term **iPhone** has the highest frequency.
+
+This explains the success of this smartphone which is _always_ the news.
+
+
+

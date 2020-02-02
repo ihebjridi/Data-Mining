@@ -1,0 +1,220 @@
+---
+title: "Process-Mining-Loans"
+author: "Iheb Jridi"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+```
+
+# Problem
+
+Nowadays, several systems record the activities executed in log files. Significant use of a system therefore results in log files with millions of lines.
+
+
+Detecting anomalies thus becomes a difficult task to perform manually. In this perspective, Web Mining and more precisely Process Mining is considered to be a powerful tool which makes it possible to solve this problem.
+
+
+In this lab, we will study and explore an eventlog file downloaded from the Kaggle platform. This file contains bank credit requests from a German bank.
+
+# Solution Presentation
+The solution consists of implementing Process Mining techniques.
+
+Several R libraries make it possible to carry out these techniques. It is important to start by understanding the structure of an eventlog:
+
+The eventlog globally describes processes (each process has a unique CASE_ID). A process can be made up of several operations (therefore having several instances) and for each operation, the activity, the start time and the end date are generally given.
+
+Generally, we will view a summary of the eventlog, the most frequent activities ...
+
+We will also facilitate the analysis using graphs.
+
+# Technical details of the method and interpretations
+
+```{r}
+library(bupaR)
+library(edeaR)
+library(processmapR)
+library(eventdataR)
+library(readr)
+library(tidyverse)
+library(DiagrammeR)
+library(ggplot2)
+library(stringr)
+library(lubridate)
+```
+# Data Import
+
+```{r}
+# Reading only the 10.000 obsevations
+
+header <- read.csv('credit_file +.csv', nrows = 1, header = FALSE, sep =',', stringsAsFactors = FALSE)
+data    <- read.csv('credit_file +.csv', skip = 1, nrows=10000,header = FALSE, sep =',')
+colnames( data ) <- unlist(header)
+head(data,5)
+```
+
+The data set is made up of 400,000 events described by 24 columns.
+
+## Eventlog creation
+The creation of the eventlog requires some modifications to the data set:
+
+   * The column containing the timestamp of the event must have the type Date
+   * Each event must be described in a unique way by an instance identifier. Since such an identifier does not exist, it will have to be added.
+  
+Once these modifications are made, a call to the eventlog function of the bupaR library is used to create the eventlog.
+
+
+```{r}
+data$Complete_Timestamp = as.Date(data$Complete_Timestamp)
+data$activity_instance_id = seq(1,nrow(data))
+
+```
+
+
+```{r}
+eventlog = data %>% #a data.frame with the information in the table above
+    eventlog(
+        case_id = "Case_ID",
+        activity_id = "activity_id",
+        activity_instance_id = "activity_instance_id",
+        lifecycle_id = "lifecycle:transition",
+        timestamp = "Complete_Timestamp",
+        resource_id = "Resource"
+    )
+
+```
+
+# Results
+
+## Eventlog Summary
+
+This operation gives a global view on the eventlog.
+The latter contains 400,000 events which describe 24,424 requests for bank credit.
+
+There are 26 types of activities and the average size of a trace is 16 (a trace is a succession of events that relate to the same process).
+
+The eventlog contains requests made between January 1, 2016 and January 26, 2017.
+```{r}
+eventlog %>% summary
+```
+
+## Activity Frequency
+
+The library ** edeaR ** offers the function ** activity_frequency ** which allows to list the frequencies of activity appearances.
+
+The aboslute column gives the number of occurrences and the relative column gives the frequency (percentage).
+```{r}
+activity_frequency(eventlog = eventlog,level = "activity",append = F)
+```
+
+
+## The processes where an activity must be present
+
+The purpose of this operation is to study only the requests that have a specific activity (For example, study only the requests for credits accepted or refused ...).
+
+Just call the filter_activity_presence function by passing it one or more activities.
+
+
+
+```{r}
+eventlog %>% 
+  filter_activity_presence(activities = c('A_Accepted','A_Denied')) %>%
+  activity_frequency(level = "activity")
+```
+
+
+## Process map
+
+A process map is a figure which facilitates the study of traces (succession of activities).
+
+The figure is a graph whose nodes are activities and whose arcs indicate that the destination node has as anterior the source node.
+
+Each arc also has a weighting which indicates the number of bank credit requests which have passed through the two activities respectively.
+
+To have a more visible graph, we considered only the traces with a probability of appearance of 90%.
+
+
+```{r}
+eventlog %>%
+  filter_activity_frequency(percentage = 1.0) %>% 
+  filter_trace_frequency(percentage = 0.9) %>%    
+  process_map()
+```
+
+
+
+## Precedence Matrix
+
+This matrix almost makes it possible to carry out the same study of the previous part but offering a rendering easier to use.
+
+Precedence matrix looks like the heatmap which allows to study the correlation between the variables.
+```{r}
+eventlog %>% filter_trace_frequency(percentage = 0.9) %>% precedence_matrix() %>% plot()
+```
+
+
+We note for example, that the O_CreateOffer activity is always followed by the O_Created activity (So no anomaly occurs during the creation of an offer).
+
+Also O_Created is almost always followed by the O_Sent activity (mail and online).
+
+
+## Trace activities
+
+Here, we are interested in trace frequencies through visualization.
+
+The trace_explorer function in the processmapR library gives a color code to each activity and visualizes the different traces, indicating in addition the probability of occurrence.
+
+We will limit ourselves only to the traces which cover 70% of the log to have a readable output.
+
+
+```{r}
+trace_activites <- trace_explorer(eventlog = eventlog,coverage = 0.7)
+plot(trace_activites)
+```
+
+
+
+## Throughput time in hours by type of application
+
+ 
+
+```{r}
+eventlog %>%
+  filter_trace_frequency(percentage = 0.8) %>% group_by(.$`(case)_ApplicationType`) %>% 
+  throughput_time('log', units = 'hours')
+
+```
+
+We can observe a remarkable difference between the processing time of requests for new credits and increase of credit limit (Limit Raise).
+
+## Throughput time in hours by loan objective
+
+```{r}
+eventlog %>%
+  filter_trace_frequency(percentage = 0.8) %>%
+  group_by(.$`(case)_ApplicationType`) %>% 
+  throughput_time('log', units = 'hours')
+```
+
+Note that only one process has the objective of lending a debt restructuring (NA value for standard deviation).
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
